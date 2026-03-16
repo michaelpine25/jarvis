@@ -18,6 +18,7 @@ conversation_history = []
 
 user_name = os.getenv("USER_NAME")
 PORCUPINE_ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")
+WAKE_WORD_FILE_PATH = os.getenv("WAKE_WORD_FILE_PATH")
 
 system_prompt = f"""You are Jarvis, a helpful and intelligent personal desk assistant for {user_name}.
 You are concise, friendly, and professional like the Jarvis from Iron Man.
@@ -35,7 +36,7 @@ PRE_BUFFER_FRAMES = 10
 def wait_for_wake_word():
     porcupine = pvporcupine.create(
         access_key=PORCUPINE_ACCESS_KEY,
-        keyword_paths=["hello-jarvis-porcupine.ppn"]
+        keyword_paths=[WAKE_WORD_FILE_PATH]
     )
     recorder = pvrecorder.PvRecorder(frame_length=porcupine.frame_length)
     recorder.start()

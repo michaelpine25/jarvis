@@ -65,6 +65,7 @@ jarvis/
    PICOVOICE_ACCESS_KEY="your-picovoice-access-key"
    AGENT_NAME="Jarvis"
    USER_NAME="Your Name"
+   WAKE_WORD_FILE_PATH="Your-.ppn-porcupine-file-path"
    ```
 
 6. Run the assistant:
@@ -108,6 +109,7 @@ pcm.!default {
 | `PICOVOICE_ACCESS_KEY` | Your Picovoice access key for wake word detection |
 | `AGENT_NAME` | What the assistant should call itself |
 | `USER_NAME` | What the assistant should call you |
+| `WAKE_WORD_FILE_PATH` | Path to the .ppn porcupine wake word file |
 
 ## Roadmap
 
