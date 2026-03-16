@@ -1,6 +1,6 @@
 # Jarvis - AI Desk Assistant
 
-A voice-activated AI desk assistant built on a Raspberry Pi, powered by the Claude API. Speak to it, and it speaks back.
+A voice-activated AI desk assistant built on a Raspberry Pi, powered by OpenAI. Say "Hello Jarvis" to wake it up, speak your question, and it speaks back.
 
 ## Hardware
 
@@ -10,20 +10,23 @@ A voice-activated AI desk assistant built on a Raspberry Pi, powered by the Clau
 
 ## How It Works
 
-1. **Wake Word** — Say "Hey Jarvis" to activate
-2. **Speech-to-Text** — Your voice is transcribed locally on the Pi
-3. **Claude API** — Transcribed text is sent to Claude and a response is generated
-4. **Text-to-Speech** — The response is spoken back through the speaker
+1. **Wake Word** — Say "Hello Jarvis" to activate
+2. **Voice Activity Detection** — Automatically detects when you start and stop speaking
+3. **Speech-to-Text** — Your voice is transcribed using OpenAI Whisper
+4. **LLM** — Transcribed text is sent to GPT-4o and a response is generated
+5. **Text-to-Speech** — The response is spoken back through the speaker using OpenAI TTS
 
 ## Project Structure
 
 ```
 jarvis/
-├── venv/           # Python virtual environment (not tracked)
-├── .env            # API keys (not tracked)
+├── venv/                             # Python virtual environment (not tracked)
+├── .env                              # API keys and config (not tracked)
 ├── .gitignore
 ├── README.md
-└── main.py         # Main assistant logic
+├── Hello-Jarvis_en_mac.ppn           # Porcupine wake word model - Mac (not tracked)
+├── Hello-Jarvis_en_raspberry-pi.ppn  # Porcupine wake word model - Pi (not tracked)
+└── main.py                           # Main assistant logic
 ```
 
 ## Setup
@@ -32,7 +35,8 @@ jarvis/
 
 - Raspberry Pi 4 running Raspberry Pi OS (64-bit)
 - Python 3.9+
-- Anthropic API key — get one at [console.anthropic.com](https://console.anthropic.com)
+- OpenAI API key — get one at [platform.openai.com](https://platform.openai.com)
+- Picovoice access key — get one at [console.picovoice.ai](https://console.picovoice.ai)
 
 ### Installation
 
@@ -50,20 +54,33 @@ jarvis/
 
 3. Install dependencies:
    ```bash
-   pip install anthropic python-dotenv
+   pip install openai python-dotenv sounddevice scipy webrtcvad numpy pvporcupine pvrecorder pygame
    ```
 
-4. Create a `.env` file in the root of the project:
+4. Download your wake word model from [console.picovoice.ai](https://console.picovoice.ai), train it for your platform (Mac or Raspberry Pi), and place the `.ppn` file in the root of the project.
+
+5. Create a `.env` file in the root of the project:
    ```
-   ANTHROPIC_API_KEY="your-api-key-here"
+   OPENAI_API_KEY="your-openai-api-key"
+   PICOVOICE_ACCESS_KEY="your-picovoice-access-key"
+   AGENT_NAME="Jarvis"
+   USER_NAME="Your Name"
    ```
 
-5. Run the assistant:
+6. Run the assistant:
    ```bash
    python3 main.py
    ```
 
-## Audio Setup
+## Usage
+
+1. Run `python3 main.py`
+2. Say **"Hello Jarvis"** to activate
+3. Speak your question — it will automatically detect when you start and stop talking
+4. Jarvis will respond out loud
+6. Press `Ctrl+C` to quit
+
+## Audio Setup (Raspberry Pi)
 
 The USB mic and speaker need to be configured as the default ALSA devices. Add the following to `~/.asoundrc` on the Pi:
 
@@ -87,14 +104,23 @@ pcm.!default {
 
 | Variable | Description |
 |---|---|
-| `ANTHROPIC_API_KEY` | Your Anthropic API key |
+| `OPENAI_API_KEY` | Your OpenAI API key |
+| `PICOVOICE_ACCESS_KEY` | Your Picovoice access key for wake word detection |
+| `AGENT_NAME` | What the assistant should call itself |
+| `USER_NAME` | What the assistant should call you |
 
 ## Roadmap
 
-- [x] Claude API integration
+- [x] GPT-4o integration
 - [x] Conversation memory
-- [x] Jarvis personality via system prompt
-- [ ] Speech-to-text (Vosk)
-- [ ] Text-to-speech (pyttsx3/espeak)
-- [ ] Wake word detection (Porcupine)
+- [x] Custom personality via system prompt
+- [x] Whisper speech-to-text
+- [x] OpenAI text-to-speech
+- [x] Voice activity detection (auto start/stop recording)
+- [x] Wake word detection ("Hello Jarvis")
+- [ ] Deploy and test on Raspberry Pi
+- [ ] Always-on background service on Pi boot
 
+## License
+
+MIT
