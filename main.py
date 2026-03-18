@@ -20,10 +20,12 @@ user_name = os.getenv("USER_NAME")
 PORCUPINE_ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")
 WAKE_WORD_FILE_PATH = os.getenv("WAKE_WORD_FILE_PATH")
 
-system_prompt = f"""You are Jarvis, a helpful and intelligent personal desk assistant for {user_name}.
+system_prompt = f"""You are {agent_name}, a helpful and intelligent personal desk assistant for {user_name}.
 You are concise, friendly, and professional like the Jarvis from Iron Man.
 Always address him as {user_name}. Keep responses brief and conversational
-since they will be spoken out loud."""
+since they will be spoken out loud.
+When {user_name} is clearly saying goodbye or ending the conversation, end your response with the exact token: <END_CONVERSATION>"""
+
 
 SAMPLE_RATE = 16000
 FRAME_DURATION = 30
@@ -132,13 +134,34 @@ def speak(text):
     while pygame.mixer.music.get_busy():
         pygame.time.Clock().tick(10)
 
-wait_for_wake_word()
+def is_farewell(text):
+    return any(word in text.lower() for word in FAREWELL_WORDS)
 
 while True:
-    if record_audio():
-        text = transcribe()
-        if text:
-            print(f"You said: {text}")
-            response = ask_gpt(text)
-            print(f"Jarvis: {response}")
-            speak(response)
+    wait_for_wake_word()
+    speak(f"Yes {user_name}?")
+    
+    silence_count = 0
+    MAX_SILENCE = 3
+
+    while True:
+        if record_audio():
+            silence_count = 0
+            text = transcribe()
+            if text:
+                print(f"You said: {text}")
+                response = ask_gpt(text)
+                if "<END_CONVERSATION>" in response:
+                    response = response.replace("<END_CONVERSATION>", "").strip()
+                    print(f"Jarvis: {response}")
+                    speak(response)
+                    break
+                else:
+                    print(f"Jarvis: {response}")
+                    speak(response)
+        else:
+            silence_count += 1
+            if silence_count >= MAX_SILENCE:
+                print("💤 Going back to sleep...")
+                speak("Going to sleep, say Hello Jarvis to wake me up.")
+                break
