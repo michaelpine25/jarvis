@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
 from openai import OpenAI
 import sounddevice as sd
-import scipy.io.wavfile as wav
 import webrtcvad
 import numpy as np
 import collections
@@ -10,6 +9,10 @@ import pygame
 import io
 import pvporcupine
 import pvrecorder
+import sounddevice as sd
+import numpy as np
+from faster_whisper import WhisperModel
+import re
 
 load_dotenv()
 
@@ -17,6 +20,7 @@ client = OpenAI()
 conversation_history = []
 
 user_name = os.getenv("USER_NAME")
+agent_name = os.getenv("AGENT_NAME")
 PORCUPINE_ACCESS_KEY = os.getenv("PICOVOICE_ACCESS_KEY")
 WAKE_WORD_FILE_PATH = os.getenv("WAKE_WORD_FILE_PATH")
 
@@ -35,6 +39,8 @@ START_SPEECH_FRAMES = 5
 STOP_SILENCE_FRAMES = 30
 PRE_BUFFER_FRAMES = 10
 
+whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+
 def wait_for_wake_word():
     porcupine = pvporcupine.create(
         access_key=PORCUPINE_ACCESS_KEY,
@@ -42,7 +48,7 @@ def wait_for_wake_word():
     )
     recorder = pvrecorder.PvRecorder(frame_length=porcupine.frame_length)
     recorder.start()
-    print("🟢 Waiting for 'Hello Jarvis'...")
+    print("Waiting for 'Hello Jarvis'...")
     try:
         while True:
             pcm = recorder.read()
@@ -56,7 +62,7 @@ def wait_for_wake_word():
         porcupine.delete()
 
 def record_audio():
-    vad = webrtcvad.Vad(3) # 3 is the most aggressive mode
+    vad = webrtcvad.Vad(3)
     print("👂 Listening...")
     triggered = False
     speech_frames = []
@@ -99,19 +105,18 @@ def record_audio():
         print("⚠️ Too short, ignoring")
         return None
 
-    wav.write("input.wav", SAMPLE_RATE, audio)
-    print("💾 Saved input.wav")
-    return True
+    # Convert to float32 normalized between -1 and 1 for faster-whisper
+    audio_float32 = audio.astype(np.float32) / 32768.0
+    return audio_float32
 
-def transcribe():
-    with open("input.wav", "rb") as f:
-        transcript = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=f
-        )
-    return transcript.text
+def transcribe(audio):
+    print("Transcribing...")
+    segments, _ = whisper_model.transcribe(audio, beam_size=1)
+    text = " ".join([segment.text for segment in segments])
+    return text.strip()
 
-def ask_gpt(user_input):
+def ask_gpt_stream(user_input):
+    print("Asking GPT...")
     conversation_history.append({"role": "user", "content": user_input})
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -122,43 +127,69 @@ def ask_gpt(user_input):
     return assistant_message
 
 def speak(text):
-    response = client.audio.speech.create(
+    SAMPLE_RATE = 24000
+    
+    with client.audio.speech.with_streaming_response.create(
         model="tts-1",
         voice="onyx",
-        input=text
-    )
-    pygame.mixer.init()
-    audio_data = io.BytesIO(response.content)
-    pygame.mixer.music.load(audio_data)
-    pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
-        pygame.time.Clock().tick(10)
+        input=text,
+        response_format="pcm"
+    ) as response:
+        with sd.RawOutputStream(samplerate=SAMPLE_RATE, channels=1, dtype='int16') as stream:
+            for chunk in response.iter_bytes(chunk_size=4096):
+                stream.write(chunk)
 
-def is_farewell(text):
-    return any(word in text.lower() for word in FAREWELL_WORDS)
+def speak_into_stream(text, stream):
+    with client.audio.speech.with_streaming_response.create(
+        model="tts-1",
+        voice="onyx",
+        input=text,
+        response_format="pcm"
+    ) as response:
+        for chunk in response.iter_bytes(chunk_size=4096):
+            stream.write(chunk)
 
 while True:
     wait_for_wake_word()
     speak(f"Yes {user_name}?")
-    
     silence_count = 0
     MAX_SILENCE = 3
 
     while True:
-        if record_audio():
+        audio = record_audio()
+        if audio is not None:
             silence_count = 0
-            text = transcribe()
+            text = transcribe(audio)
             if text:
                 print(f"You said: {text}")
-                response = ask_gpt(text)
-                if "<END_CONVERSATION>" in response:
-                    response = response.replace("<END_CONVERSATION>", "").strip()
-                    print(f"Jarvis: {response}")
-                    speak(response)
+
+                token_stream = ask_gpt_stream(text)
+                buffer = ""
+                full_response = ""
+                sentence_endings = re.compile(r'(?<=[.!?])\s+')
+
+                with sd.RawOutputStream(samplerate=24000, channels=1, dtype='int16') as stream:
+                    for token in token_stream:
+                        full_response += token
+                        buffer += token
+                        print(token, end="", flush=True)
+
+                        parts = sentence_endings.split(buffer)
+                        for sentence in parts[:-1]:
+                            clean = sentence.replace("<END_CONVERSATION>", "").strip()
+                            if clean:
+                                speak_into_stream(clean, stream)
+                        buffer = parts[-1]
+
+                    if buffer.strip():
+                        clean = buffer.replace("<END_CONVERSATION>", "").strip()
+                        if clean:
+                            speak_into_stream(clean, stream)
+
+                print()
+
+                if "<END_CONVERSATION>" in full_response:
                     break
-                else:
-                    print(f"Jarvis: {response}")
-                    speak(response)
         else:
             silence_count += 1
             if silence_count >= MAX_SILENCE:
