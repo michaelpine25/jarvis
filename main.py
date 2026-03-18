@@ -149,6 +149,10 @@ def speak_into_stream(text, stream):
         for chunk in response.iter_bytes(chunk_size=4096):
             stream.write(chunk)
 
+def write_silence(stream, duration_ms=100, sample_rate=24000):
+    silence = b'\x00' * int(sample_rate * duration_ms / 1000) * 2
+    stream.write(silence)
+
 while True:
     wait_for_wake_word()
     speak(f"Yes {user_name}?")
@@ -162,7 +166,6 @@ while True:
             text = transcribe(audio)
             if text:
                 print(f"You said: {text}")
-
                 token_stream = ask_gpt_stream(text)
                 buffer = ""
                 full_response = ""
@@ -186,6 +189,7 @@ while True:
                         if clean:
                             speak_into_stream(clean, stream)
 
+                    write_silence(stream)
                 print()
 
                 if "<END_CONVERSATION>" in full_response:
