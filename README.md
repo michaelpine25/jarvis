@@ -110,19 +110,3 @@ pcm.!default {
 | `AGENT_NAME` | What the assistant should call itself |
 | `USER_NAME` | What the assistant should call you |
 | `WAKE_WORD_FILE_PATH` | Path to the .ppn porcupine wake word file |
-
-## Roadmap
-
-- [x] GPT-4o integration
-- [x] Conversation memory
-- [x] Custom personality via system prompt
-- [x] Whisper speech-to-text
-- [x] OpenAI text-to-speech
-- [x] Voice activity detection (auto start/stop recording)
-- [x] Wake word detection ("Hello Jarvis")
-- [ ] Deploy and test on Raspberry Pi
-- [ ] Always-on background service on Pi boot
-
-## License
-
-MIT
